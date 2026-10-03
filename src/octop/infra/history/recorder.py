@@ -36,6 +36,18 @@ def _live_wire(message: Any) -> dict[str, Any] | None:
     return cast(dict[str, Any], json.loads(item.message_json))
 
 
+def _seed_has_checkpoint_ts(seed: Any) -> bool:
+    """True when a seed message was already persisted (has a checkpoint stamp).
+
+    ``_live_wire`` stamps missing timestamps during conversion, so the check
+    must look at the raw seed before it is turned into a wire.
+    """
+    extra = getattr(seed, "additional_kwargs", None)
+    if extra is None and isinstance(seed, dict):
+        extra = seed.get("additional_kwargs")
+    return bool(isinstance(extra, dict) and extra.get(CHECKPOINT_TS_KEY))
+
+
 def _chunk_artifact(chunk: dict[str, Any]) -> Any:
     """Best-effort artifact extraction for the no-messages fallback path."""
     artifact = chunk.get("artifact")
@@ -68,6 +80,8 @@ class RecordingTracker(TurnHistoryTracker):
         self._identified = False
         self._sources: set[str] = set()
         restored = False
+        self._seed_count = 0
+        new_seed_indices: set[int] = set()
         if turn["format"] == "v2":
             self._parts = [
                 doc["value"]
@@ -76,9 +90,13 @@ class RecordingTracker(TurnHistoryTracker):
             restored = bool(self._parts)
             if not self._parts:
                 for seed in seeds:
+                    stamped = _seed_has_checkpoint_ts(seed)
                     wire = _live_wire(seed)
                     if wire is not None:
+                        if not stamped:
+                            new_seed_indices.add(len(self._parts))
                         self._parts.append(wire)
+                self._seed_count = len(self._parts)
             for wire in self._parts:
                 extra = wire["data"].get("additional_kwargs", {})
                 if extra.get("history_source"):
@@ -86,7 +104,14 @@ class RecordingTracker(TurnHistoryTracker):
                 if extra.get("history_stream_id"):
                     self._identified = True
         self._indices = {id(part): index for index, part in enumerate(self._parts)}
-        self._dirty: set[int] = set() if restored else set(self._indices.values())
+        if restored:
+            self._dirty: set[int] = set()
+        else:
+            # Seed wires split into already-persisted history (stamped by their
+            # original turn) and this turn's new input. Only the new input
+            # starts dirty — rewriting history seeds would re-insert id-less
+            # historical messages as duplicate rows.
+            self._dirty = set(new_seed_indices)
         if restored:
             self._saved_signatures = {
                 index: hashlib.sha256(dumps(self._wire(part)).encode()).digest()
@@ -200,7 +225,10 @@ class RecordingTracker(TurnHistoryTracker):
             if isinstance(raw, list):
                 for msg in raw:
                     wire = _live_wire(msg)
-                    if wire is not None:
+                    # Node updates that merely contain tool results (e.g. the
+                    # dangling-tool-call patch) also carry history AI/human
+                    # messages; only the tool results belong to this handler.
+                    if wire is not None and wire["type"] == "tool":
                         wires.append(wire)
             if not wires:
                 call_id, name, result = _tool_result_fields(chunk)
@@ -287,7 +315,12 @@ class RecordingTracker(TurnHistoryTracker):
                     None,
                 )
             if role == "ai":
-                assistants = [p for p in self._parts if p["type"] == "ai"]
+                # Positional alignment must only consider parts captured in
+                # THIS turn (after the seeds): the state window excludes
+                # history, so aligning against seed parts would mis-map.
+                assistants = [
+                    p for p in self._parts[self._seed_count :] if p["type"] == "ai"
+                ]
                 if (
                     target is None
                     and not self._identified
@@ -296,6 +329,25 @@ class RecordingTracker(TurnHistoryTracker):
                 ):
                     target = assistants[assistant_index]
                 assistant_index += 1
+            if target is None and role == "ai" and not data.get("tool_calls"):
+                # A history AI message persisted without an id (e.g. a turn that
+                # crashed after streaming tokens) gets a fresh generated id when
+                # LangGraph re-emits it in the state. Without this guard it would
+                # be appended again as a "new" turn message — duplicating an old
+                # answer into the current turn.
+                ghost = next(
+                    (
+                        p
+                        for p in self._parts
+                        if p["type"] == "ai"
+                        and not p["data"].get("id")
+                        and not p["data"].get("tool_calls")
+                        and p["data"].get("content") == data.get("content")
+                    ),
+                    None,
+                )
+                if ghost is not None:
+                    continue
             if target is None:
                 self._append_part(wire)
                 continue

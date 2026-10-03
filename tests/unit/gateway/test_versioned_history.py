@@ -139,6 +139,65 @@ async def test_state_merge_keeps_checkpoint_ts_from_snapshot(archive):
 
 
 @pytest.mark.asyncio
+async def test_state_snapshot_does_not_duplicate_idless_history_answer(archive):
+    from octop.infra.gateway.process.message_keys import CHECKPOINT_TS_KEY
+
+    """A crashed turn persists its streamed answer without a message id; the
+    next turn's state snapshot re-emits it with a freshly generated id. The
+    recorder must treat it as history, not append it as a new turn message."""
+    turn1 = archive.begin("a", "t")
+    r1 = RecordingTracker(archive, turn1, [{"role": "user", "content": "q1", "id": "u1"}])
+    r1.observe({"type": "token", "content": "orphan answer"})
+    await r1.finish(completed=False)
+
+    turn2 = archive.begin("a", "t")
+    r2 = RecordingTracker(
+        archive,
+        turn2,
+        [
+            # History seeds as loaded from the archive: stamped with the
+            # checkpoint timestamp of their original turn.
+            {
+                "role": "user",
+                "content": "q1",
+                "id": "u1",
+                "additional_kwargs": {CHECKPOINT_TS_KEY: 1},
+            },
+            {
+                "role": "assistant",
+                "content": "orphan answer",
+                "additional_kwargs": {CHECKPOINT_TS_KEY: 2},
+            },
+            {"role": "user", "content": "q2", "id": "u2"},
+        ],
+    )
+    r2.observe({"type": "token", "content": "fresh answer"})
+    r2.observe(
+        {
+            "type": "state_snapshot",
+            "data": {
+                "messages": [
+                    HumanMessage(content="q1", id="u1"),
+                    AIMessage(content="orphan answer", id="generated-uuid"),
+                    HumanMessage(content="q2", id="u2"),
+                    AIMessage(content="fresh answer", id="a2"),
+                ]
+            },
+        }
+    )
+    await r2.finish(completed=True)
+
+    contents = [
+        m.content
+        for m in messages_from_dict(
+            (await archive.page("t", limit=20, cursor=None, legacy_reader=no_anchor))["messages"]
+        )
+    ]
+    assert contents.count("orphan answer") == 1
+    assert contents.count("fresh answer") == 1
+
+
+@pytest.mark.asyncio
 async def test_state_metadata_thinking_tools_and_shared_trajectory_bodies(archive):
     text = "A final answer with sufficient distinct content"
     turn = archive.begin("a", "t")
