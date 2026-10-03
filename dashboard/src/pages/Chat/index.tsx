@@ -36,6 +36,7 @@ import { useChatNavigation } from "./hooks/useChatNavigation";
 import { useChatSessionActions } from "./hooks/useChatSessionActions";
 
 import { useChatComposerResources } from "./hooks/useChatComposerResources";
+import { useAcpRunners } from "./hooks/useAcpRunners";
 import type { HitlSessionPolicy } from "./utils/hitlSessionPolicy";
 import { mergeAllowTools } from "./utils/hitlSessionPolicy";
 import { useChatContextWindow } from "./hooks/useChatContextWindow";
@@ -574,6 +575,9 @@ function ChatPageInner() {
     composerSession?.conversationMode,
     composerSession?.hitlPolicy,
   );
+
+  // Team hosts have no acp_runner tool — hide the @ mention section there.
+  const acpRunners = useAcpRunners(isTeamChat ? null : resolvedAgentId);
 
   const { contextMaxTokens, contextUsedTokens } = useChatContextWindow(
     messages,
@@ -1660,6 +1664,7 @@ function ChatPageInner() {
                 isTeamChat ? teamExpertOptions : chatAgentOptionsPickable
               }
               availableSubagents={isTeamChat ? undefined : chatSubagents}
+              availableAcpRunners={isTeamChat ? undefined : acpRunners}
               agentId={resolvedAgentId}
               threadId={activeThreadId}
               defaultModel={activeAgent?.default_model ?? null}

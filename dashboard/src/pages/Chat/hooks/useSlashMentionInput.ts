@@ -7,6 +7,7 @@ import type { SkillSpec } from "../../Agent/Skills/useSkills";
 import { useSkillDisplayName } from "../../Agent/Skills/skillDisplayNames";
 import type { ChatAgentOption } from "../components/ExpertAgentAvatar";
 import type { AgentSubagentSummary } from "../../../api/modules/subagents";
+import type { AcpRunnerOption } from "../utils/acpMention";
 import {
   buildMentionItems,
   firstFileMentionIndex,
@@ -56,6 +57,7 @@ interface UseSlashMentionInputParams {
    */
   availableExperts: ChatAgentOption[];
   availableSubagents?: AgentSubagentSummary[];
+  availableAcpRunners?: AcpRunnerOption[];
   agentId?: string | null;
   selectedConnectors: string[];
   onConnectorsChange?: (names: string[]) => void;
@@ -79,6 +81,7 @@ export function useSlashMentionInput({
   availableConnectors,
   availableExperts,
   availableSubagents = [],
+  availableAcpRunners,
   agentId,
   selectedConnectors,
   onConnectorsChange,
@@ -125,13 +128,17 @@ export function useSlashMentionInput({
         mentionAgents,
         availableSubagents,
         mentionFiles,
-        { filesFirst: isPathLikeMentionQuery(mentionQuery) },
+        {
+          filesFirst: isPathLikeMentionQuery(mentionQuery),
+          acpRunners: availableAcpRunners,
+        },
       ),
     [
       mentionQuery,
       availableConnectors,
       mentionAgents,
       availableSubagents,
+      availableAcpRunners,
       mentionFiles,
     ],
   );
@@ -315,8 +322,17 @@ export function useSlashMentionInput({
         focusAt(next.cursor);
         return;
       }
-      if (pick.kind === "agent" || pick.kind === "subagent") {
-        const tokenName = pick.kind === "subagent" ? pick.slug : pick.label;
+      if (
+        pick.kind === "agent" ||
+        pick.kind === "subagent" ||
+        pick.kind === "acp_runner"
+      ) {
+        const tokenName =
+          pick.kind === "subagent"
+            ? pick.slug
+            : pick.kind === "acp_runner"
+              ? pick.name
+              : pick.label;
         const next = replaceMentionQuery(
           text,
           mentionAtIndex,
@@ -374,6 +390,7 @@ export function useSlashMentionInput({
           (availableConnectors ||
             mentionAgents.length > 0 ||
             availableSubagents.length > 0 ||
+            (availableAcpRunners?.length ?? 0) > 0 ||
             agentId)
         ) {
           setMentionMenuOpen(true);
@@ -390,6 +407,7 @@ export function useSlashMentionInput({
       availableConnectors,
       mentionAgents.length,
       availableSubagents.length,
+      availableAcpRunners,
       agentId,
     ],
   );

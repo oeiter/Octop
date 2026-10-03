@@ -1,8 +1,9 @@
 import { useTranslation } from "react-i18next";
-import { FileText, Plug } from "lucide-react";
+import { Bot, FileText, Plug } from "lucide-react";
 import type { ChatConnectorOption } from "./ConnectorPickerPopover";
 import type { ChatAgentOption } from "./ExpertAgentAvatar";
 import type { AgentSubagentSummary } from "../../../api/modules/subagents";
+import type { AcpRunnerOption } from "../utils/acpMention";
 import {
   isPathLikeMentionQuery,
   workspaceMentionHintState,
@@ -18,12 +19,14 @@ export type MentionPick =
   | { kind: "connector"; name: string; label: string }
   | { kind: "agent"; agent_id: string; label: string }
   | { kind: "subagent"; slug: string; label: string }
+  | { kind: "acp_runner"; name: string; label: string }
   | { kind: "file"; path: string; label: string };
 
 export function mentionPickKey(item: MentionPick): string {
   if (item.kind === "file") return `file:${item.path}`;
   if (item.kind === "subagent") return `subagent:${item.slug}`;
   if (item.kind === "connector") return `connector:${item.name}`;
+  if (item.kind === "acp_runner") return `acp:${item.name}`;
   return `agent:${item.agent_id}`;
 }
 
@@ -37,7 +40,10 @@ export function buildMentionItems(
   agents: MentionAgentOption[] = [],
   subagents: AgentSubagentSummary[] = [],
   files: WorkspaceMentionFile[] = [],
-  options: { filesFirst?: boolean } = {},
+  options: {
+    filesFirst?: boolean;
+    acpRunners?: AcpRunnerOption[];
+  } = {},
 ): MentionPick[] {
   const q = query.trim().toLowerCase();
   const people: MentionPick[] = [];
@@ -70,6 +76,10 @@ export function buildMentionItems(
       continue;
     }
     people.push({ kind: "subagent", slug: s.slug, label });
+  }
+  for (const r of options.acpRunners ?? []) {
+    if (q && !r.name.toLowerCase().includes(q)) continue;
+    people.push({ kind: "acp_runner", name: r.name, label: r.label });
   }
 
   const filePicks: MentionPick[] = [];
@@ -129,11 +139,13 @@ export default function MentionPickerMenu({
   const connSection = t("mention.connectors", "Connectors");
   const agentSection = t("mention.experts", "Experts");
   const subagentSection = t("mention.subagents", "Subagents");
+  const acpSection = t("mention.acpRunners", "ACP runners");
   const fileSection = t("mention.files", "Workspace files");
 
   const sectionFor = (item: MentionPick) => {
     if (item.kind === "connector") return connSection;
     if (item.kind === "subagent") return subagentSection;
+    if (item.kind === "acp_runner") return acpSection;
     if (item.kind === "file") return fileSection;
     return agentSection;
   };
@@ -183,6 +195,8 @@ export default function MentionPickerMenu({
             let icon;
             if (item.kind === "connector") {
               icon = <Plug size={14} />;
+            } else if (item.kind === "acp_runner") {
+              icon = <Bot size={14} />;
             } else if (item.kind === "file") {
               icon = <FileText size={14} />;
             } else if (item.kind === "subagent") {

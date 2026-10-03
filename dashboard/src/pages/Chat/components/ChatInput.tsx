@@ -25,6 +25,7 @@ import type { KnowledgeBase } from "../../../api/modules/knowledgeBases";
 import type { SkillSpec } from "../../Agent/Skills/useSkills";
 import type { ChatAgentOption } from "./ExpertAgentAvatar";
 import type { AgentSubagentSummary } from "../../../api/modules/subagents";
+import type { AcpRunnerOption } from "../utils/acpMention";
 import MentionPickerMenu from "./MentionPickerMenu";
 import ChatInputPreviewBar from "./ChatInputPreviewBar";
 import ChatInputActionsRow from "./ChatInputActionsRow";
@@ -125,6 +126,7 @@ interface ChatInputProps {
    */
   availableExperts?: ChatAgentOption[];
   availableSubagents?: AgentSubagentSummary[];
+  availableAcpRunners?: AcpRunnerOption[];
   agentId?: string | null;
   threadId?: string | null;
   defaultModel?: string | null;
@@ -178,6 +180,7 @@ const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
       // accidentally re-surfacing stopped experts in the @-picker.
       availableExperts = availableAgents,
       availableSubagents = [],
+      availableAcpRunners,
       agentId,
       threadId,
       defaultModel,
@@ -396,6 +399,7 @@ const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
       availableConnectors,
       availableExperts,
       availableSubagents,
+      availableAcpRunners,
       agentId,
       selectedConnectors,
       onConnectorsChange,

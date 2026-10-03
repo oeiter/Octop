@@ -3661,6 +3661,7 @@
     "connectors": "连接器",
     "experts": "专家",
     "subagents": "子智能体",
+    "acpRunners": "ACP 运行器",
     "files": "工作区文件",
     "typeToSearch": "输入文件名搜索",
     "typeMore": "至少输入两个字符搜索文件",

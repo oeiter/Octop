@@ -3664,6 +3664,7 @@
     "connectors": "Connectors",
     "experts": "Experts",
     "subagents": "Subagents",
+    "acpRunners": "ACP runners",
     "files": "Workspace files",
     "typeToSearch": "Type a file name to search",
     "typeMore": "Type at least two characters to search files",
