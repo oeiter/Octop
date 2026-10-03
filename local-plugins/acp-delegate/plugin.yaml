@@ -1,0 +1,7 @@
+id: acp-delegate
+version: 0.1.2
+name: ACP Delegate
+description: "@<runner> 提及的 ACP 委派指令注入(读取消息上的 octop_acp_delegate 标记,向 system_message 追加 acp_runner 委派指令)"
+group: tools
+kind: hook
+entry: main.py
