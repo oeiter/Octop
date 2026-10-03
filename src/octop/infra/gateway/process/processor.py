@@ -1188,6 +1188,7 @@ class GlobalProcessor:
         thread_id: str,
         meta: dict[str, Any],
     ) -> dict[str, Any]:
+        from octop.infra.gateway.process.acp_delegate import ACP_DELEGATE_KEY  # noqa: PLC0415
         from octop.infra.gateway.process.message_keys import COMPOSER_CTX_KEY  # noqa: PLC0415
 
         media_backend = media_backend_for_agent(self._agent_manager, agent_id)
@@ -1221,6 +1222,9 @@ class GlobalProcessor:
         composer = meta.get(COMPOSER_CTX_KEY)
         if isinstance(composer, dict) and composer:
             message_kwargs[COMPOSER_CTX_KEY] = composer
+        acp_delegate = meta.get(ACP_DELEGATE_KEY)
+        if isinstance(acp_delegate, dict) and acp_delegate.get("runner"):
+            message_kwargs[ACP_DELEGATE_KEY] = acp_delegate
         attachments = meta.get(INBOUND_ATTACHMENTS_KEY)
         if not isinstance(attachments, list) or not attachments:
             attachments = inbound_attachments_from_parts(msg.content)

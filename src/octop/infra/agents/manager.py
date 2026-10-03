@@ -514,6 +514,32 @@ class AgentManager:
     def acp_settings(self) -> ACPSettingsStore:
         return self._acp_settings
 
+    def acp_delegate_capabilities(self, agent_id: str) -> tuple[list[str], bool] | None:
+        """Enabled ACP runner names + per-agent ``acp_runner`` tool toggle.
+
+        Mirrors the lookup used by ``_build_harness_config`` (the agent
+        owner's runner set, team hosts excluded) so callers see exactly what
+        the harness-registered ``acp_runner`` tool can do. ``None`` when the
+        agent does not exist.
+        """
+        from octop.infra.agents.teams import is_team_agent  # noqa: PLC0415
+
+        row = self.get_row(agent_id)
+        if row is None:
+            return None
+        if is_team_agent(row):
+            return [], False
+        acp_cfg = self.get_config(agent_id).get("acp")
+        tool_enabled = bool(isinstance(acp_cfg, dict) and acp_cfg.get("tool_enabled", False))
+        acp_user_id = row.user_id
+        if acp_user_id is None:
+            acp_user_id = self._connector_user_override.get(row.agent_id)
+        runners = (
+            self._acp_settings.load_runners(acp_user_id) if acp_user_id is not None else {}
+        )
+        enabled = [name for name, runner in runners.items() if runner.get("enabled")]
+        return enabled, tool_enabled
+
     @property
     def tool_guard_rules(self) -> ToolGuardRulesStore:
         return self._tool_guard_rules

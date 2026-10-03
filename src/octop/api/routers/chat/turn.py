@@ -24,6 +24,7 @@ from octop.infra.gateway.media.attachment_hints import (
     is_vision_attachment,
 )
 from octop.infra.gateway.media.inbound_store import inbound_rel_path
+from octop.infra.gateway.process.acp_delegate import ACP_DELEGATE_KEY, resolve_acp_delegate
 from octop.infra.gateway.process.message_keys import (
     COMPOSER_CTX_KEY,
     INBOUND_ATTACHMENTS_KEY,
@@ -55,6 +56,7 @@ class PreparedDashboardTurn:
     inbound_content: list[ContentPart]
     composer_context: dict[str, Any] | None
     inbound_attachments: list[dict[str, str]]
+    acp_delegate: dict[str, str] | None = None
 
 
 async def resolve_thread_id(
@@ -263,6 +265,16 @@ async def prepare_dashboard_turn(
         thread_id=turn.thread_id,
         session_key=turn.session_key,
     )
+    acp_delegate: dict[str, str] | None = None
+    plain_text = _turn_plain_text(turn)
+    if plain_text.startswith("@"):
+        caps = server.app_runtime.agent_registry.acp_delegate_capabilities(agent_id)
+        if caps is not None:
+            acp_delegate = resolve_acp_delegate(
+                text=plain_text,
+                enabled_runner_names=caps[0],
+                tool_enabled=caps[1],
+            )
     model_ref = (turn.default_model or "").strip() or None
     if (
         model_ref is not None
@@ -300,6 +312,7 @@ async def prepare_dashboard_turn(
         inbound_content=inbound_content,
         composer_context=composer_ctx,
         inbound_attachments=inbound_attachments,
+        acp_delegate=acp_delegate,
     )
 
 
@@ -340,6 +353,8 @@ def build_dashboard_inbound(
         metadata[COMPOSER_CTX_KEY] = prepared.composer_context
     if prepared.inbound_attachments:
         metadata[INBOUND_ATTACHMENTS_KEY] = prepared.inbound_attachments
+    if prepared.acp_delegate:
+        metadata[ACP_DELEGATE_KEY] = prepared.acp_delegate
     merge_turn_target_agents(turn, metadata)
 
     return InboundMessage(
