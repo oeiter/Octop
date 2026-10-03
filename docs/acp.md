@@ -65,6 +65,14 @@ Permission prompts from the external agent appear in chat; pick an option or ins
 
 After changing global runners, Octop reloads your agents automatically. Changing only `tool_enabled` reloads that agent.
 
+### `@`-mention delegation (per message)
+
+Type `@` in the dashboard composer to pick an enabled runner from the mention menu. A message starting with `@<runner>` (e.g. `@opencode 修复登录bug`) delegates that single message to the runner via `acp_runner` (it starts a session, or continues the existing one for the thread). Permission prompts surface through the normal `acp_runner` flow.
+
+- Requires the agent's **Enable acp_runner tool** toggle — otherwise the section is hidden and `@name` is treated as plain text.
+- Messages without the `@<runner>` prefix go to the Octop agent normally; unknown `@name` is passed through as plain text.
+- The delegation directive is injected by the **`acp-delegate` hook plugin** (`local-plugins/acp-delegate/`, installed at `~/.octop/plugins/acp-delegate`). Removing/disabling the plugin turns `@<runner>` messages back into plain prompts.
+
 ---
 
 ## CLI: inbound — expose Octop as an ACP server
